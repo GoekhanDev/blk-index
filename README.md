@@ -89,7 +89,6 @@ Each parsed block is stored as a structured dictionary. Example format:
 ## 🛠 Requirements
 
 - Python 3.8+
-- MongoDB or another supported backend (via `database.py`)
 - Install dependencies:
 
 ```bash
