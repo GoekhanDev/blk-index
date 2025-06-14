@@ -3,6 +3,8 @@ import hashlib
 from io import BytesIO
 import logger
 import base58
+from typing import Optional, Union, List, Dict, Any, BinaryIO
+
 
 class parser:
 
@@ -11,7 +13,7 @@ class parser:
         "litecoin": 32_000
     }
 
-    def __init__(self, coin: str):
+    def __init__(self, coin: str) -> None:
         """
         Initialize the parser with coin type.
 
@@ -23,7 +25,7 @@ class parser:
         BTC_MAGIC_BYTES = b'\xf9\xbe\xb4\xd9'
         self.magic_bytes = LTC_MAGIC_BYTES if self.coin == "litecoin" else BTC_MAGIC_BYTES
 
-    def read_block_sync(self, f):
+    def read_block_sync(self, f: BinaryIO) -> Optional[bytes]:
         """
         Read a single raw block from a .dat file.
 
@@ -47,7 +49,7 @@ class parser:
             raise ValueError("Incomplete block")
         return block_data
 
-    def _extract_height_from_coinbase(self, coinbase_tx):
+    def _extract_height_from_coinbase(self, coinbase_tx: Dict[str, Any]) -> Optional[int]:
         """
         Extract the block height from coinbase transaction via BIP-34.
 
@@ -72,7 +74,7 @@ class parser:
         except Exception:
             return None
 
-    def parse_block_sync(self, raw_bytes, height=None):
+    def parse_block_sync(self, raw_bytes: bytes, height: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """
         Parse a raw block into structured data.
 
@@ -115,7 +117,7 @@ class parser:
             logger.debug(f"Block parse error: {e}")
             return None
 
-    def read_varint_sync(self, f):
+    def read_varint_sync(self, f: BinaryIO) -> Optional[int]:
         """
         Read a Bitcoin-style variable integer.
 
@@ -138,7 +140,7 @@ class parser:
         else:
             return struct.unpack('<Q', f.read(8))[0]
 
-    def read_hash_sync(self, f):
+    def read_hash_sync(self, f: BinaryIO) -> str:
         """
         Read a hash (32 bytes, reversed).
 
@@ -150,7 +152,7 @@ class parser:
         """
         return f.read(32)[::-1].hex()
 
-    def read_block_header_sync(self, f):
+    def read_block_header_sync(self, f: BinaryIO) -> Dict[str, Union[int, str]]:
         """
         Read and parse the block header.
 
@@ -175,7 +177,7 @@ class parser:
             'nonce': nonce
         }
 
-    def decode_address(self, script_hex):
+    def decode_address(self, script_hex: str) -> Optional[str]:
         """
         Decode the scriptPubKey into a human-readable address.
 
@@ -232,7 +234,7 @@ class parser:
         
         return None
 
-    def _encode_address(self, version, hash_hex):
+    def _encode_address(self, version: bytes, hash_hex: str) -> Optional[str]:
         """
         Encode address using Base58Check.
 
@@ -251,7 +253,7 @@ class parser:
         except Exception:
             return None
 
-    def _encode_bech32(self, hrp, witver, witprog):
+    def _encode_bech32(self, hrp: str, witver: int, witprog: bytes) -> Optional[str]:
         """
         Encode Bech32 address (simplified implementation).
 
@@ -271,11 +273,11 @@ class parser:
         except Exception:
             return None
 
-    def _bech32_hrp_expand(self, hrp):
+    def _bech32_hrp_expand(self, hrp: str) -> List[int]:
         """Expand the HRP into values for checksum computation."""
         return [ord(x) >> 5 for x in hrp] + [0] + [ord(x) & 31 for x in hrp]
 
-    def _bech32_polymod_step(self, values):
+    def _bech32_polymod_step(self, values: List[int]) -> int:
         """Internal function for bech32 polymod."""
         GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
         chk = 1
@@ -286,13 +288,13 @@ class parser:
                 chk ^= GEN[i] if ((top >> i) & 1) else 0
         return chk
 
-    def _bech32_create_checksum(self, hrp, data):
+    def _bech32_create_checksum(self, hrp: str, data: List[int]) -> List[int]:
         """Compute the checksum values given HRP and data."""
         values = self._bech32_hrp_expand(hrp) + data
         polymod = self._bech32_polymod_step(values + [0, 0, 0, 0, 0, 0]) ^ 1
         return [(polymod >> 5 * (5 - i)) & 31 for i in range(6)]
 
-    def _convertbits(self, data, frombits, tobits, pad=True):
+    def _convertbits(self, data: Union[bytes, List[int]], frombits: int, tobits: int, pad: bool = True) -> Optional[List[int]]:
         """General power-of-2 base conversion."""
         acc = 0
         bits = 0
@@ -316,7 +318,7 @@ class parser:
 
     _bech32_charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
-    def parse_transaction_sync(self, f):
+    def parse_transaction_sync(self, f: BinaryIO) -> Dict[str, Any]:
         """
         Parse a Bitcoin-style transaction from stream.
 
@@ -418,7 +420,7 @@ class parser:
         tx['txid'] = hashlib.sha256(hashlib.sha256(raw_tx).digest()).digest()[::-1].hex()
         return tx
 
-    def _write_varint(self, n):
+    def _write_varint(self, n: int) -> bytes:
         """
         Write a variable integer to bytes.
 
@@ -436,21 +438,65 @@ class parser:
             return struct.pack('<BI', 0xfe, n)
         else:
             return struct.pack('<BQ', 0xff, n)
+        
+    def _extract_address_from_scriptsig(self, scriptsig_hex: str) -> Optional[str]:
+        """
+        Extract address from scriptSig (limited capability for pruned nodes).
 
-    async def read_block(self, f):
+        Args:
+            scriptsig_hex (str): ScriptSig in hex format.
+
+        Returns:
+            str: Extracted address or None.
+        """
+        if not scriptsig_hex:
+            return None
+            
+        try:
+            script_bytes = bytes.fromhex(scriptsig_hex)
+
+            if len(script_bytes) < 33:
+                return None
+
+            i = 0
+            while i < len(script_bytes):
+                if script_bytes[i] == 0x30 and i + 1 < len(script_bytes):
+                    sig_len = script_bytes[i + 1]
+                    if sig_len > 0 and i + 2 + sig_len < len(script_bytes):
+                  
+                        pubkey_start = i + 2 + sig_len + 1
+                        if pubkey_start < len(script_bytes):
+                            pubkey_len = script_bytes[pubkey_start - 1]
+                            if pubkey_len in [33, 65] and pubkey_start + pubkey_len <= len(script_bytes):
+                                pubkey = script_bytes[pubkey_start:pubkey_start + pubkey_len]
+                                
+                                pubkey_hash = hashlib.new('ripemd160', hashlib.sha256(pubkey).digest()).digest()
+                                version = b'\x30' if self.coin == "litecoin" else b'\x00'
+                                checksum_input = version + pubkey_hash
+                                checksum = hashlib.sha256(hashlib.sha256(checksum_input).digest()).digest()[:4]
+                                return base58.b58encode(checksum_input + checksum).decode()
+                        break
+                i += 1
+            
+            return None
+            
+        except Exception:
+            return None
+
+    async def read_block(self, f: BinaryIO) -> Optional[bytes]:
         return self.read_block_sync(f)
 
-    async def read_varint(self, f):
+    async def read_varint(self, f: BinaryIO) -> Optional[int]:
         return self.read_varint_sync(f)
 
-    async def read_hash(self, f):
+    async def read_hash(self, f: BinaryIO) -> str:
         return self.read_hash_sync(f)
 
-    async def read_block_header(self, f):
+    async def read_block_header(self, f: BinaryIO) -> Dict[str, Union[int, str]]:
         return self.read_block_header_sync(f)
 
-    async def parse_transaction(self, f):
+    async def parse_transaction(self, f: BinaryIO) -> Dict[str, Any]:
         return self.parse_transaction_sync(f)
 
-    async def parse_block(self, raw_bytes, height=None):
+    async def parse_block(self, raw_bytes: bytes, height: Optional[int] = None) -> Optional[Dict[str, Any]]:
         return self.parse_block_sync(raw_bytes, height)

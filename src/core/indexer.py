@@ -5,10 +5,11 @@ from typing import Optional, Dict, Any, List, Tuple
 
 from logger import logger
 from database import get_storage
-from config import( 
-    USE_CHUNKS, 
-    CHUNK_SIZE, 
+from config import (
+    USE_CHUNKS,
+    CHUNK_SIZE,
     MAX_WORKERS,
+    STORE_BLOCKS,
     LITECOIN_BLOCKS_PATH,
     BITCOIN_BLOCKS_PATH,
     USE_RPC
@@ -16,6 +17,7 @@ from config import(
 
 from utils.progressbar import progress_bar
 from core.node.rpc import RPCClient
+from core.node.cli import CLIClient
 from core.blk_parser import parser
 
 class index:
@@ -34,12 +36,15 @@ class index:
         self.stop_event = threading.Event()
         self.lock = Lock()
 
-        self.node = RPCClient()
+        self.rpc = RPCClient()
+        self.cli = CLIClient()
+        self.node = self.rpc if USE_RPC else self.cli
         self.parser = parser(self.coin)
 
         self.use_chunks = USE_CHUNKS
         self.insert_chunk_size = CHUNK_SIZE
         self.max_workers = MAX_WORKERS
+        self.store_blocks = STORE_BLOCKS
 
         self.block_path = LITECOIN_BLOCKS_PATH if self.coin == "litecoin" else BITCOIN_BLOCKS_PATH
 
@@ -126,12 +131,14 @@ class index:
                                 if self.use_chunks:
                                     blocks.append(block)
                                     if len(blocks) >= self.insert_chunk_size:
-                                        asyncio.run(self.database.store_blocks_batch(blocks))
+                                        if self.store_blocks:
+                                            asyncio.run(self.database.store_blocks_batch(blocks))
                                         self.process_and_store_transactions_batch(blocks)
                                         blocks.clear()
                                         gc.collect()
                                 else:
-                                    asyncio.run(self.database.store_block(block))
+                                    if self.store_blocks:
+                                        asyncio.run(self.database.store_block(block))
                                     self.process_and_store_transactions(block)
                                     del block
 
@@ -149,7 +156,8 @@ class index:
 
             if self.use_chunks and blocks:
                 try:
-                    asyncio.run(self.database.store_blocks_batch(blocks))
+                    if self.store_blocks:
+                        asyncio.run(self.database.store_blocks_batch(blocks))
                     self.process_and_store_transactions_batch(blocks)
                     blocks.clear()
                     del blocks
@@ -203,6 +211,7 @@ class index:
             start_height (int): Start height of the block range.
             end_height (int): End height of the block range.
         """
+        
         expected = set(range(end_height, start_height + 1))
         actual = set(await self.database.get_indexed_block_heights(end_height, start_height))
         missing = expected - actual
@@ -244,7 +253,7 @@ class index:
                             "value": 0,
                         })
                     else:
-                        address = self._extract_address_from_scriptsig(v.get("scriptSig", ""))
+                        address = self.parser._extract_address_from_scriptsig(v.get("scriptSig", ""))
                         vin.append({
                             "txid": vin_txid,
                             "vout": vin_vout,
@@ -344,46 +353,3 @@ class index:
             except Exception as e:
                 logger.warning(f"Failed to insert TXs for block {block_height}: {e}")
 
-    def _extract_address_from_scriptsig(self, scriptsig_hex: str) -> str:
-        """
-        Extract address from scriptSig (limited capability for pruned nodes).
-
-        Args:
-            scriptsig_hex (str): ScriptSig in hex format.
-
-        Returns:
-            str: Extracted address or None.
-        """
-        if not scriptsig_hex:
-            return None
-            
-        try:
-            script_bytes = bytes.fromhex(scriptsig_hex)
-
-            if len(script_bytes) < 33:
-                return None
-
-            i = 0
-            while i < len(script_bytes):
-                if script_bytes[i] == 0x30 and i + 1 < len(script_bytes):
-                    sig_len = script_bytes[i + 1]
-                    if sig_len > 0 and i + 2 + sig_len < len(script_bytes):
-                  
-                        pubkey_start = i + 2 + sig_len + 1
-                        if pubkey_start < len(script_bytes):
-                            pubkey_len = script_bytes[pubkey_start - 1]
-                            if pubkey_len in [33, 65] and pubkey_start + pubkey_len <= len(script_bytes):
-                                pubkey = script_bytes[pubkey_start:pubkey_start + pubkey_len]
-                                
-                                pubkey_hash = hashlib.new('ripemd160', hashlib.sha256(pubkey).digest()).digest()
-                                version = b'\x30' if self.coin == "litecoin" else b'\x00'
-                                checksum_input = version + pubkey_hash
-                                checksum = hashlib.sha256(hashlib.sha256(checksum_input).digest()).digest()[:4]
-                                return base58.b58encode(checksum_input + checksum).decode()
-                        break
-                i += 1
-            
-            return None
-            
-        except Exception:
-            return None

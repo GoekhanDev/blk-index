@@ -3,14 +3,19 @@ import json
 import logger
 import os
 
+from config import (
+    BITCOIN_CLI_PATH,
+    LITECOIN_CLI_PATH
+)
+
 class CLIClient:
     def __init__(self):
         ...
     
     def get_cli_path(self, coin):
         default_paths = {
-            "litecoin": "/home/litecoin/litecoin-node/litecoin-0.21.4/bin/litecoin-cli",
-            "bitcoin": "/home/bitcoin/bitcoin-node/bitcoin-0.21.4/bin/bitcoin-cli"
+            "litecoin": LITECOIN_CLI_PATH,
+            "bitcoin": BITCOIN_CLI_PATH
         }
 
         return default_paths[coin]
@@ -40,7 +45,7 @@ class CLIClient:
         return await self._run_cli(coin, "getblockchaininfo")
 
     async def get_block_hash(self, coin: str, height: int) -> str:
-        return await self._run_cli(coin, "getblockhash", str(height), parse_json=False, )
+        return await self._run_cli(coin, "getblockhash", str(height), parse_json=False)
 
     async def get_block(self, coin: str, block_hash: str) -> dict:
         return await self._run_cli(coin, "getblock", block_hash, "2")
