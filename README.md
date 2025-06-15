@@ -16,8 +16,6 @@
 
 ---
 
-## Core Parser: `blk_parser.py`
-
 **Efficient | Modular | Lightweight**
 
 Parses raw `.blk` files directly from your node's data directory. Designed for low-memory environments with support for multithreading and chunked data processing.
