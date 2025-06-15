@@ -30,6 +30,7 @@ Ensure your configuration is correctly set in `.env` (e.g., block paths, RPC set
 
 ```bash
 python main.py
+```
 
 ---
-more details coming once the project is finished.
+A Documentation will be written once the project is finished...
