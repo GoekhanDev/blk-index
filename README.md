@@ -5,9 +5,9 @@
 
 <div align="center">
 
-# 🧱 Bitcoin / Litecoin Blockchain Indexer
+# Bitcoin / Litecoin Blockchain Indexer
 
-### 📦 Focused on **Pruned Nodes** — Compatible with Full Nodes
+### Focused on **Pruned Nodes** — Compatible with Full Nodes
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -16,7 +16,7 @@
 
 ---
 
-## 🔍 Core Parser: `blk_parser.py`
+## Core Parser: `blk_parser.py`
 
 **Efficient | Modular | Lightweight**
 
@@ -26,7 +26,7 @@ Parses raw `.blk` files directly from your node's data directory. Designed for l
 
 ---
 
-## ▶️ How to Use
+## How to Use
 
 Ensure your configuration is correctly set in `config.py` (e.g., block paths, RPC settings, chunking preferences), then run:
 
