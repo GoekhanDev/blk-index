@@ -1,0 +1,6 @@
+asyncio
+python-dotenv
+pymongo
+tqdm
+python-bitcoinrpc
+base58
