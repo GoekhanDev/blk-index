@@ -26,7 +26,7 @@ Parses raw `.blk` files directly from your node's data directory. Designed for l
 
 ## How to Use
 
-Ensure your configuration is correctly set in `config.py` (e.g., block paths, RPC settings, chunking preferences), then run:
+Ensure your configuration is correctly set in `.env` (e.g., block paths, RPC settings, chunking preferences), then run:
 
 ```bash
 python main.py
