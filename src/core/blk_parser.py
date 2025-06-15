@@ -98,7 +98,8 @@ class parser:
                 try:
                     txs.append(self.parse_transaction_sync(f))
                 except Exception as e:
-                    logger.debug(f"Transaction parse error: {e}")
+                    if "unpack requires a buffer" not in str(e):
+                        logger.debug(f"Transaction parse error: {e}")
                     break
             if height is None and txs:
                 height = self._extract_height_from_coinbase(txs[0])
@@ -114,7 +115,8 @@ class parser:
                 }
             }
         except Exception as e:
-            logger.debug(f"Block parse error: {e}")
+            if "unpack requires a buffer" not in str(e) or "Invalid magic bytes" not in str(e):
+                logger.debug(f"Block parse error: {e}")
             return None
 
     def read_varint_sync(self, f: BinaryIO) -> Optional[int]:

@@ -147,7 +147,8 @@ class index:
                                     fetched_blocks_ref[0] += 1
 
                         except Exception as e:
-                            logger.debug(f"Error parsing block in {os.path.basename(file_path)}: {e}")
+                            if "unpack requires a buffer" not in str(e) or "Invalid magic bytes" not in str(e):
+                                logger.debug(f"Block parse error: {e}")
                             break
 
             except Exception as e:
@@ -211,13 +212,16 @@ class index:
             start_height (int): Start height of the block range.
             end_height (int): End height of the block range.
         """
-        
+        if not self.store_blocks:
+            logger.info(f"{self.coin.upper()}: Block storage disabled, skipping block verification.")
+            return
+            
         expected = set(range(end_height, start_height + 1))
         actual = set(await self.database.get_indexed_block_heights(end_height, start_height))
         missing = expected - actual
 
         if missing:
-            logger.error(f"{self.coin.upper()}: Missing {len(missing)} blocks: {sorted(missing)}")
+            logger.error(f"{self.coin.upper()}: Missing {len(missing)} Blocks")
         else:
             logger.info(f"{self.coin.upper()}: All blocks from height {end_height} to {start_height} are indexed.")
 
